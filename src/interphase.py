@@ -98,9 +98,8 @@ class BlueyeInterface(ctk.CTk):
         
         # Configure frame to expand properly
         map_frame.pack_propagate(False)  # Prevent frame from shrinking
-        map_frame.configure(height=400)  # Set a fixed height for the map
+        map_frame.configure(height=500)  # Set a fixed height for the map
 
-    # [Previous methods remain the same]
     def create_sensors_section(self):
         sensors_frame = ctk.CTkFrame(self.left_frame)
         sensors_frame.pack(fill="x", padx=5, pady=5)
@@ -111,7 +110,6 @@ class BlueyeInterface(ctk.CTk):
             "IMU:": "Active",
             "DVL:": "Active",
             "BAR:": "Active",
-            "MODE:": "Rotate",
             "STATUS:": "Inactive"
         }
         
@@ -149,8 +147,6 @@ class BlueyeInterface(ctk.CTk):
         
         velocities = {
             "U:": "-0.0517",
-            "V:": "0.0623",
-            "W:": "0.0391",
             "R:": "0.0038"
         }
         
@@ -185,8 +181,7 @@ class BlueyeInterface(ctk.CTk):
         ctk.CTkLabel(controllers_frame, text="CONTROLLERS").pack(anchor="w", padx=5, pady=5)
         
         controllers = [
-            "Surge", "Sway", "Heave", "Heave_Rate",
-            "Yaw", "Yaw_Rate", "Surge Offset", "Sway Offset"
+            "Surge", "Sway", "Yaw"
         ]
         
         for controller in controllers:
