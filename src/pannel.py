@@ -2,6 +2,8 @@ import customtkinter as ctk
 import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import math
+import tkinter as tk
 
 class MissionState:
     def __init__(self, name, status="Inactive"):
@@ -15,17 +17,42 @@ class ROVController:
             "INSPECT_PIPELINE": MissionState("INSPECT_PIPELINE"),
             "RETURN_TO_DOCK": MissionState("RETURN_TO_DOCK")
         }
+        self.current_state = None
+        self.emergency_mode = False
+
+    def start_mission(self):
+        """Start the mission with the first state"""
+        self.current_state = "UNDOCK"
+        self.mission_states["UNDOCK"].status = "Active"
+
+    def advance_state(self):
+        """Advance to the next mission state"""
+        states_order = ["UNDOCK", "INSPECT_PIPELINE", "RETURN_TO_DOCK"]
+        if self.current_state in states_order:
+            current_index = states_order.index(self.current_state)
+            self.mission_states[self.current_state].status = "Inactive"
+            
+            if current_index < len(states_order) - 1:
+                self.current_state = states_order[current_index + 1]
+                self.mission_states[self.current_state].status = "Active"
+                return True
+        return False
+
+    def trigger_emergency(self):
+        """Trigger emergency return sequence"""
+        self.emergency_mode = True
+        for state in self.mission_states.values():
+            state.status = "Inactive"
 
 class ROVPlotCanvas:
     def __init__(self, master):
-        self.figure = Figure(figsize=(8, 6), dpi=100, facecolor='#2b2b2b')
+        self.figure = Figure(figsize=(8, 6), dpi=100)
         self._setup_axes()
         self._setup_canvas(master)
         self._initialize_plot()
 
     def _setup_axes(self):
         self.axes = self.figure.add_subplot(111, projection='3d', computed_zorder=False)
-        self.axes.set_facecolor('#2b2b2b')
         self._set_labels()
         self._set_limits()
 
@@ -64,24 +91,142 @@ class ROVPlotCanvas:
         self.axes.grid(True, zorder=0)
         self.axes.legend()
 
+class CircularMissionDisplay(ctk.CTkCanvas):
+    def __init__(self, parent, controller, **kwargs):
+        super().__init__(parent, **kwargs)
+        self.controller = controller
+        self.configure(highlightthickness=0)
+        self.pack(fill="both", expand=True, padx=5, pady=5)
+        self.bind('<Configure>', self._on_resize)
+        
+    def _on_resize(self, event):
+        self.update_display()
+        
+    def update_display(self):
+        self.delete("all")  # Clear canvas
+        
+        # Calculate dimensions
+        width = self.winfo_width()
+        height = self.winfo_height()
+        center_x = width / 2
+        center_y = height / 2
+        radius = min(width, height) / 3
+        
+        # Draw title
+        self.create_text(center_x, center_y - 10, 
+                        text="Mission 1",
+                        fill="white",
+                        font=("Arial", 16, "bold"))
+        
+        # Draw connecting circle
+        self.create_oval(center_x - radius - 20, center_y - radius - 20,
+                        center_x + radius + 20, center_y + radius + 20,
+                        outline="#334155", dash=(4, 4))
+        
+        # Calculate and draw states
+        states = list(self.controller.mission_states.items())
+        for i, (name, state) in enumerate(states):
+            # Calculate position on circle
+            angle = (i * 2 * math.pi / len(states)) - math.pi/2
+            x = center_x + radius * math.cos(angle)
+            y = center_y + radius * math.sin(angle)
+            
+            # Draw connecting lines
+            # next_i = (i + 1) % len(states)
+            # next_angle = (next_i * 2 * math.pi / len(states)) - math.pi/2
+            # next_x = center_x + radius * math.cos(next_angle)
+            # next_y = center_y + radius * math.sin(next_angle)
+            
+            # self.create_line(x, y, next_x, next_y,
+            #                fill="#475569", width=2)
+            
+            # Draw state circle
+            color = "#22c55e" if state.status == "Active" else "#ef4444"
+            self.create_oval(x - 25, y - 25, x + 25, y + 25,
+                           fill=color, outline="#475569", width=2)
+            
+            # Draw outer ring
+            self.create_oval(x - 30, y - 30, x + 30, y + 30,
+                           outline=color, width=2, dash=(4, 4))
+            
+            # Draw state name
+            self.create_text(x, y + 45,
+                           text=name.replace("_", " "),
+                           fill="white",
+                           font=("Arial", 10))
+            
+            # Draw state status
+            self.create_text(x, y + 60,
+                           text=state.status,
+                           fill=color,
+                           font=("Arial", 8))
+
 class MissionStateSection(ctk.CTkFrame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller
-        self.pack(fill="x", padx=5, pady=5)
+        self.pack(fill="both", expand=True, padx=5, pady=5)
         self._create_mission_display()
 
     def _create_mission_display(self):
-        ctk.CTkLabel(self, text="MISSION STATES").pack(anchor="w", padx=5, pady=5)
-        for state in self.controller.mission_states.values():
-            self._create_state_row(state)
+        # Title
+        title_frame = ctk.CTkFrame(self)
+        title_frame.pack(fill="x", padx=5, pady=5)
+        ctk.CTkLabel(
+            title_frame,
+            text="MISSION CONTROL PANEL",
+            font=("Arial", 20, "bold")
+        ).pack(anchor="center")
 
-    def _create_state_row(self, state):
-        frame = ctk.CTkFrame(self)
-        frame.pack(fill="x", padx=5, pady=2)
-        ctk.CTkLabel(frame, text=f"{state.name}:").pack(side="left", padx=5)
-        color = "green" if state.status == "Active" else "red"
-        ctk.CTkLabel(frame, text=state.status, text_color=color).pack(side="left")
+        # Circular mission display
+        self.mission_display = CircularMissionDisplay(
+            self,
+            self.controller,
+            width=300,
+            height=300
+        )
+
+        # Control buttons
+        self.button_frame = ctk.CTkFrame(self)
+        self.button_frame.pack(fill="x", padx=5, pady=5)
+        
+        # Start button
+        self.start_button = ctk.CTkButton(
+            self.button_frame,
+            text="Start Mission",
+            command=self._start_mission
+        )
+        self.start_button.pack(pady=5)
+        
+        # Next State button
+        self.next_state_button = ctk.CTkButton(
+            self.button_frame,
+            text="Next State",
+            command=self._advance_state
+        )
+        self.next_state_button.pack(pady=5)
+        
+        # Emergency button
+        self.emergency_button = ctk.CTkButton(
+            self.button_frame,
+            text="Emergency Return",
+            fg_color="red",
+            hover_color="#8B0000",
+            command=self._trigger_emergency
+        )
+        self.emergency_button.pack(pady=5)
+
+    def _start_mission(self):
+        self.controller.start_mission()
+        self.mission_display.update_display()
+        
+    def _advance_state(self):
+        self.controller.advance_state()
+        self.mission_display.update_display()
+        
+    def _trigger_emergency(self):
+        self.controller.trigger_emergency()
+        self.mission_display.update_display()
 
 class BlueyeInterface(ctk.CTk):
     def __init__(self):
@@ -96,7 +241,7 @@ class BlueyeInterface(ctk.CTk):
         self.geometry("1200x800")
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
-        ctk.set_appearance_mode("dark")
+        ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
 
     def _create_layout(self):
@@ -113,8 +258,7 @@ class BlueyeInterface(ctk.CTk):
     def update_mission_state(self, state_name, status):
         if state_name in self.controller.mission_states:
             self.controller.mission_states[state_name].status = status
-            # Trigger UI update
-            self._initialize_sections()
+            self.mission_states.mission_display.update_display()
 
 if __name__ == "__main__":
     app = BlueyeInterface()
