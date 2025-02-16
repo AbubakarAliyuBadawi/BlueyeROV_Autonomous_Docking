@@ -5,217 +5,227 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+import math
 
-class ROVPlotCanvas:
-    def __init__(self, master):
-        self.figure = Figure(figsize=(8, 6), dpi=100, facecolor='#2b2b2b')
-        self.axes = self.figure.add_subplot(111, projection='3d', computed_zorder=False)
-        self.axes.set_facecolor('#2b2b2b')  # Set background color to match dark theme
+class ThrusterDisplay(tk.Canvas):
+    def __init__(self, master, **kwargs):
+        super().__init__(master, **kwargs)
+        self.configure(bg='#2b2b2b')
+        self.draw_circular_display()
+
+    def draw_circular_display(self):
+        # Draw outer circle
+        self.create_oval(10, 10, 290, 290, outline='white')
         
-        self.canvas = FigureCanvasTkAgg(self.figure, master=master)
-        self.canvas.draw()
+        # Draw degree markers
+        center_x, center_y = 150, 150
+        radius = 140
+        for degree in [0, 90, 180, 270]:
+            angle = math.radians(degree)
+            x1 = center_x + (radius - 10) * math.cos(angle)
+            y1 = center_y - (radius - 10) * math.sin(angle)
+            x2 = center_x + radius * math.cos(angle)
+            y2 = center_y - radius * math.sin(angle)
+            self.create_line(x1, y1, x2, y2, fill='white')
+            # Add degree text
+            text_x = center_x + (radius + 20) * math.cos(angle)
+            text_y = center_y - (radius + 20) * math.sin(angle)
+            self.create_text(text_x, text_y, text=str(degree), fill='white')
+
+        # Draw ROV image (simplified rectangle for now)
+        self.create_rectangle(120, 120, 180, 180, fill='gray')
         
-        # Set fixed view limits
-        self.x_limits = [-100, 100]
-        self.y_limits = [-100, 100]
-        self.z_limits = [85, 100]
-        
-        self.axes.set_xlabel('X [m]')
-        self.axes.set_ylabel('Y [m]')
-        self.axes.set_zlabel('Depth [m]')
-        self.axes.set_title('ROV Position and Waypoints')
-        
-        # Initialize plot elements
-        self.path_line, = self.axes.plot3D([], [], [], 'b-', label='Blueye Path', linewidth=2, zorder=1)
-        self.current_pos, = self.axes.plot3D([], [], [], 'yo', label='Blueye Position', markersize=10, zorder=3)
-        
-        # Plot waypoints
-        waypoints = np.array([
-            [-8.5, 8.54, 95.3],    # Docking station
-            [-18.0, -25.0, 90.0],  # Pipeline point 1
-            [20.0, 55.0, 90.0]     # Pipeline point 2
-        ])
-        
-        # Docking station
-        self.axes.scatter([waypoints[0, 0]], [waypoints[0, 1]], [waypoints[0, 2]],
-                         c='r', marker='s', s=100, label='Docking Station', zorder=2)
-        
-        # Pipeline points
-        self.axes.scatter(waypoints[1:, 0], waypoints[1:, 1], waypoints[1:, 2],
-                         c='g', marker='s', s=100, label='Pipeline', zorder=2)
-        
-        self.axes.set_xlim(self.x_limits)
-        self.axes.set_ylim(self.y_limits)
-        self.axes.set_zlim(self.z_limits[1], self.z_limits[0])
-        
-        self.axes.view_init(elev=25, azim=45)
-        self.axes.grid(True, zorder=0)
-        self.axes.legend()
-        
-        self.canvas_widget = self.canvas.get_tk_widget()
+        # Draw thruster indicators
+        self.create_rectangle(90, 140, 110, 160, outline='white')  # Left
+        self.create_rectangle(190, 140, 210, 160, outline='white')  # Right
+        self.create_rectangle(140, 90, 160, 110, outline='white')   # Top
+        self.create_rectangle(140, 190, 160, 210, outline='white')  # Bottom
 
 class BlueyeInterface(ctk.CTk):
     def __init__(self):
         super().__init__()
 
         # Configure window
-        self.title("Blueye Interface")
+        self.title("Blueye Control System")
         self.geometry("1200x800")
         
-        # Configure grid layout for the main window
-        self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        # Create main container
+        self.main_container = ctk.CTkFrame(self)
+        self.main_container.pack(fill="both", expand=True, padx=5, pady=5)
         
-        # Set appearance mode to dark
-        ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("blue")
+        # Create tab view
+        self.tab_view = ctk.CTkTabview(self.main_container)
+        self.tab_view.pack(fill="x", padx=5, pady=5)
+        
+        # Add tabs
+        self.tab_view.add("Control System")
+        self.tab_view.add("Parameter Tuning")
+        self.tab_view.add("System Log")
+        self.tab_view.add("Altitude Tuning")
+        
+        # Create left panel
+        self.left_panel = ctk.CTkFrame(self.tab_view.tab("Control System"))
+        self.left_panel.pack(side="left", fill="y", padx=5, pady=5)
+        
+        # Create center panel
+        self.center_panel = ctk.CTkFrame(self.tab_view.tab("Control System"))
+        self.center_panel.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+        
+        # Create right panel
+        self.right_panel = ctk.CTkFrame(self.tab_view.tab("Control System"))
+        self.right_panel.pack(side="right", fill="y", padx=5, pady=5)
+        
+        self.create_left_panel()
+        self.create_center_panel()
+        self.create_right_panel()
 
-        # Create main frames
-        self.left_frame = ctk.CTkFrame(self)
-        self.left_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-        
-        self.right_frame = ctk.CTkFrame(self)
-        self.right_frame.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
-
-        # Create sections
-        self.create_sensors_section()
-        # self.create_map_section()
-        self.create_position_section()
-        self.create_velocity_section()
-        self.create_selectors_section()
-        self.create_controllers_section()
-        self.create_modes_section()        
-        self.create_map_section()
-
-    def create_map_section(self):
-        # Create a dedicated frame for the map at the bottom of left_frame
-        map_frame = ctk.CTkFrame(self.right_frame)
-        map_frame.pack(fill="both", expand=True, padx=5, pady=5, side="bottom")
-        
-        # Create the plot canvas
-        self.plot_canvas = ROVPlotCanvas(map_frame)
-        self.plot_canvas.canvas_widget.pack(fill="both", expand=True, padx=5, pady=5)
-        
-        # Configure frame to expand properly
-        map_frame.pack_propagate(False)  # Prevent frame from shrinking
-        map_frame.configure(height=500)  # Set a fixed height for the map
-
-    def create_sensors_section(self):
-        sensors_frame = ctk.CTkFrame(self.left_frame)
-        sensors_frame.pack(fill="x", padx=5, pady=5)
-        
-        ctk.CTkLabel(sensors_frame, text="SENSORS").pack(anchor="w", padx=5, pady=5)
-        
-        sensors = {
-            "IMU:": "Active",
-            "DVL:": "Active",
-            "BAR:": "Active",
-            "STATUS:": "Inactive"
-        }
-        
-        for sensor, status in sensors.items():
-            frame = ctk.CTkFrame(sensors_frame)
-            frame.pack(fill="x", padx=5, pady=2)
-            ctk.CTkLabel(frame, text=sensor).pack(side="left", padx=5)
-            color = "green" if status == "Active" else "red" if status == "Inactive" else "white"
-            ctk.CTkLabel(frame, text=status, text_color=color).pack(side="left")
-
-    def create_position_section(self):
-        position_frame = ctk.CTkFrame(self.left_frame)
-        position_frame.pack(fill="x", padx=5, pady=5)
-        
-        ctk.CTkLabel(position_frame, text="POSITION").pack(anchor="w", padx=5, pady=5)
-        
-        positions = {
-            "X:": "61.48",
-            "Y:": "7.66",
-            "Z:": "0.0341",
-            "Yaw:": "319.38"
-        }
-        
-        for pos, value in positions.items():
-            frame = ctk.CTkFrame(position_frame)
-            frame.pack(fill="x", padx=5, pady=2)
-            ctk.CTkLabel(frame, text=pos).pack(side="left", padx=5)
-            ctk.CTkLabel(frame, text=value).pack(side="left")
-
-    def create_velocity_section(self):
-        velocity_frame = ctk.CTkFrame(self.left_frame)
-        velocity_frame.pack(fill="x", padx=5, pady=5)
-        
-        ctk.CTkLabel(velocity_frame, text="VELOCITY").pack(anchor="w", padx=5, pady=5)
-        
-        velocities = {
-            "U:": "-0.0517",
-            "R:": "0.0038"
-        }
-        
-        for vel, value in velocities.items():
-            frame = ctk.CTkFrame(velocity_frame)
-            frame.pack(fill="x", padx=5, pady=2)
-            ctk.CTkLabel(frame, text=vel).pack(side="left", padx=5)
-            ctk.CTkLabel(frame, text=value).pack(side="left")
-
-    def create_selectors_section(self):
-        selectors_frame = ctk.CTkFrame(self.left_frame)
-        selectors_frame.pack(fill="x", padx=5, pady=5)
-        
-        ctk.CTkLabel(selectors_frame, text="SELECTORS").pack(anchor="w", padx=5, pady=5)
-        
-        # Observer dropdown
-        observer_frame = ctk.CTkFrame(selectors_frame)
-        observer_frame.pack(fill="x", padx=5, pady=2)
-        ctk.CTkLabel(observer_frame, text="Observer:").pack(side="left", padx=5)
-        ctk.CTkOptionMenu(observer_frame, values=["Coupled"], width=120).pack(side="left", padx=5)
-        
-        # Control Mode dropdown
-        control_frame = ctk.CTkFrame(selectors_frame)
-        control_frame.pack(fill="x", padx=5, pady=2)
-        ctk.CTkLabel(control_frame, text="Control Mode:").pack(side="left", padx=5)
-        ctk.CTkOptionMenu(control_frame, values=["Velocity"], width=120).pack(side="left", padx=5)
-
-    def create_controllers_section(self):
-        controllers_frame = ctk.CTkFrame(self.left_frame)
-        controllers_frame.pack(fill="x", padx=5, pady=5)
-        
-        ctk.CTkLabel(controllers_frame, text="CONTROLLERS").pack(anchor="w", padx=5, pady=5)
-        
-        controllers = [
-            "Surge", "Sway", "Yaw"
+    def create_left_panel(self):
+        buttons = [
+            "START CONTROL SYSTEM",
+            "START LOGGING",
+            "CONFIGURE",
+            "UDP SNIFFER",
+            "SYNCHRONIZE",
+            "HELP",
+            "EXIT"
         ]
         
-        for controller in controllers:
-            frame = ctk.CTkFrame(controllers_frame)
-            frame.pack(fill="x", padx=5, pady=2)
-            ctk.CTkLabel(frame, text=controller).pack(side="left", padx=5)
-            slider = ctk.CTkSlider(frame)
-            slider.pack(side="left", padx=5, fill="x", expand=True)
-            value = "180.0" if controller == "Yaw" else "0.0"
-            ctk.CTkLabel(frame, text=value).pack(side="right", padx=5)
-        
-        # Add START and STOP buttons
-        button_frame = ctk.CTkFrame(controllers_frame)
-        button_frame.pack(fill="x", padx=5, pady=10)
-        
-        ctk.CTkButton(button_frame, text="START", fg_color="green").pack(side="left", padx=5, expand=True)
-        ctk.CTkButton(button_frame, text="STOP", fg_color="red").pack(side="right", padx=5, expand=True)
-
-    def create_modes_section(self):
-        modes_frame = ctk.CTkFrame(self.right_frame)
-        modes_frame.pack(fill="x", padx=5, pady=5)
-        
-        modes = ["STATION KEEP", "ROTATE", "ASCEND", "DESCEND"]
-        
-        for mode in modes:
-            button = ctk.CTkButton(modes_frame, text=mode, fg_color="blue")
-            button.pack(fill="x", padx=5, pady=5)
+        for button_text in buttons:
+            btn = ctk.CTkButton(self.left_panel, text=button_text)
+            btn.pack(fill="x", padx=5, pady=2)
             
-            if mode in ["ASCEND", "DESCEND"]:
-                frame = ctk.CTkFrame(modes_frame)
-                frame.pack(fill="x", padx=5, pady=2)
-                slider = ctk.CTkSlider(frame)
-                slider.pack(side="left", padx=5, fill="x", expand=True)
-                ctk.CTkLabel(frame, text="0.2").pack(side="right", padx=5)
+        # Add Thruster Forces display
+        self.thruster_label = ctk.CTkLabel(self.left_panel, text="Thruster Forces")
+        self.thruster_label.pack(pady=5)
+        
+        self.thruster_display = ThrusterDisplay(self.left_panel, width=300, height=300)
+        self.thruster_display.pack(pady=5)
+
+    def create_center_panel(self):
+        # Title
+        title_label = ctk.CTkLabel(self.center_panel, text="Blueye Control System", font=("Arial", 20))
+        title_label.pack(pady=10)
+        
+        # Control Modes section
+        modes_frame = ctk.CTkFrame(self.center_panel)
+        modes_frame.pack(fill="x", pady=10)
+        
+        modes_label = ctk.CTkLabel(modes_frame, text="Control Modes")
+        modes_label.pack()
+        
+        # Status indicators
+        indicators_frame = ctk.CTkFrame(modes_frame)
+        indicators_frame.pack(fill="x", pady=10)
+        
+        # Create two columns of indicators
+        left_indicators = ctk.CTkFrame(indicators_frame)
+        left_indicators.pack(side="left", expand=True)
+        
+        right_indicators = ctk.CTkFrame(indicators_frame)
+        right_indicators.pack(side="right", expand=True)
+        
+        # Left column indicators
+        self.create_indicator(left_indicators, "Waypoint Control")
+        self.create_indicator(left_indicators, "Altitude Hold")
+        
+        # Right column indicators
+        self.create_indicator(right_indicators, "Dynamic Positioning")
+        self.create_indicator(right_indicators, "Depth Hold")
+        
+        # Create the 3D plot
+        self.create_3d_plot()
+
+    def create_right_panel(self):
+        # Emergency Stop Button
+        emergency_stop = ctk.CTkButton(self.right_panel, text="EMERGENCY\nSTOP", 
+                                     fg_color="darkred", hover_color="red",
+                                     height=100)
+        emergency_stop.pack(fill="x", padx=5, pady=10)
+        
+        # Sensor Status
+        sensor_frame = ctk.CTkFrame(self.right_panel)
+        sensor_frame.pack(fill="x", padx=5, pady=10)
+        
+        sensor_label = ctk.CTkLabel(sensor_frame, text="Sensor Status")
+        sensor_label.pack()
+        
+        sensors = ["DVL", "IMU", "DEPTH", "USBL"]
+        for sensor in sensors:
+            self.create_indicator(sensor_frame, sensor)
+        
+        # Waypoint Control
+        waypoint_frame = ctk.CTkFrame(self.right_panel)
+        waypoint_frame.pack(fill="x", padx=5, pady=10)
+        
+        # X, Y coordinates entry
+        coord_frame = ctk.CTkFrame(waypoint_frame)
+        coord_frame.pack(fill="x", pady=5)
+        
+        ctk.CTkEntry(coord_frame, placeholder_text="X").pack(side="left", padx=2)
+        ctk.CTkEntry(coord_frame, placeholder_text="Y").pack(side="left", padx=2)
+        ctk.CTkButton(coord_frame, text="Go", width=50).pack(side="left", padx=2)
+        
+        # Additional controls
+        altitude_frame = ctk.CTkFrame(waypoint_frame)
+        altitude_frame.pack(fill="x", pady=5)
+        
+        ctk.CTkLabel(altitude_frame, text="Altitude (m):").pack(side="left")
+        ctk.CTkEntry(altitude_frame, width=70).pack(side="left", padx=5)
+        
+        velocity_frame = ctk.CTkFrame(waypoint_frame)
+        velocity_frame.pack(fill="x", pady=5)
+        
+        ctk.CTkLabel(velocity_frame, text="Velocity (m/s):").pack(side="left")
+        ctk.CTkEntry(velocity_frame, width=70).pack(side="left", padx=5)
+        
+        # Waypoint buttons
+        button_frame = ctk.CTkFrame(waypoint_frame)
+        button_frame.pack(fill="x", pady=5)
+        
+        ctk.CTkButton(button_frame, text="Send waypoints").pack(side="left", padx=2, expand=True)
+        ctk.CTkButton(button_frame, text="Clear waypoints").pack(side="left", padx=2, expand=True)
+
+    def create_indicator(self, parent, label):
+        frame = ctk.CTkFrame(parent)
+        frame.pack(fill="x", padx=5, pady=2)
+        
+        label = ctk.CTkLabel(frame, text=label)
+        label.pack(side="left", padx=5)
+        
+        # Create a red circle indicator
+        canvas = tk.Canvas(frame, width=20, height=20, bg='#2b2b2b', highlightthickness=0)
+        canvas.pack(side="right", padx=5)
+        canvas.create_oval(2, 2, 18, 18, fill='red')
+
+    def create_3d_plot(self):
+        plot_frame = ctk.CTkFrame(self.center_panel)
+        plot_frame.pack(fill="both", expand=True, pady=10)
+        
+        self.figure = Figure(figsize=(8, 6), dpi=100, facecolor='#2b2b2b')
+        self.axes = self.figure.add_subplot(111, projection='3d', computed_zorder=False)
+        self.axes.set_facecolor('#2b2b2b')
+        
+        self.canvas = FigureCanvasTkAgg(self.figure, master=plot_frame)
+        self.canvas.draw()
+        self.canvas_widget = self.canvas.get_tk_widget()
+        self.canvas_widget.pack(fill="both", expand=True)
+        
+        # Set up the plot
+        self.axes.set_xlabel('X')
+        self.axes.set_ylabel('Y')
+        self.axes.set_zlabel('Z')
+        self.axes.set_title('ROV Position')
+        
+        # Example data points
+        x = [0, 10, 20]
+        y = [0, 15, 5]
+        z = [0, 5, 10]
+        
+        self.axes.plot3D(x, y, z, 'blue')
+        self.axes.scatter3D(x, y, z, c='red')
+        
+        self.axes.grid(True)
+        self.axes.view_init(elev=20, azim=45)
 
 if __name__ == "__main__":
     app = BlueyeInterface()
