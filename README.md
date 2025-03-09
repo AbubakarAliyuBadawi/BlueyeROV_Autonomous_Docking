@@ -1,6 +1,6 @@
 # Blueye Drone Docking System
 
-A modular system for guiding a Blueye underwater drone to an autonomous docking station using USBL (Ultra Short Baseline) positioning data.
+A modular system for guiding a Blueye underwater drone to an autonomous docking station using USBL (Ultra Short Baseline) positioning data with the [Blueye SDK](https://github.com/BluEye-Robotics/blueye.sdk).
 
 ## Overview
 
